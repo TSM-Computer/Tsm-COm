@@ -10,7 +10,8 @@ export interface FuelEntry {
   date: string; // ISO string
   amount: number;
   note?: string;
-  tripType: 'daily' | 'round-trip';
+  trip_type: 'daily' | 'round-trip';
+  trips?: number;
 }
 
 export interface Stats {

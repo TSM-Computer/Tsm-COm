@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Fuel, Plus, Calendar } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { FuelEntry } from '../types';
 
 interface FuelFormProps {
@@ -10,7 +10,8 @@ interface FuelFormProps {
 export default function FuelForm({ onAddEntry }: FuelFormProps) {
   const [amount, setAmount] = useState<string>('');
   const [date, setDate] = useState<string>(new Date().toISOString().split('T')[0]);
-  const [tripType, setTripType] = useState<'daily' | 'round-trip'>('round-trip');
+  const [trip_type, setTripType] = useState<'daily' | 'round-trip'>('round-trip');
+  const [trips, setTrips] = useState<string>('1');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,9 +20,11 @@ export default function FuelForm({ onAddEntry }: FuelFormProps) {
     onAddEntry({
       date: new Date(date).toISOString(),
       amount: Number(amount),
-      tripType,
+      trip_type,
+      trips: trip_type === 'round-trip' ? Number(trips) || 1 : undefined,
     });
     setAmount('');
+    setTrips('1');
   };
 
   return (
@@ -66,7 +69,7 @@ export default function FuelForm({ onAddEntry }: FuelFormProps) {
           <div>
             <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">ประเภท</label>
             <select
-              value={tripType}
+              value={trip_type}
               onChange={(e) => setTripType(e.target.value as any)}
               className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-brand-primary focus:outline-none transition-all appearance-none text-sm font-medium"
             >
@@ -75,6 +78,26 @@ export default function FuelForm({ onAddEntry }: FuelFormProps) {
             </select>
           </div>
         </div>
+
+        <AnimatePresence>
+          {trip_type === 'round-trip' && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="overflow-hidden"
+            >
+              <label className="block text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">จำนวนเที่ยว</label>
+              <input
+                type="number"
+                value={trips}
+                onChange={(e) => setTrips(e.target.value)}
+                placeholder="1"
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-brand-primary focus:outline-none transition-all text-sm font-medium"
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <motion.button
           whileTap={{ scale: 0.98 }}

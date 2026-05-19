@@ -1,9 +1,9 @@
+import React, { useRef, useState } from 'react';
 import { FuelEntry } from '../types';
 import { formatDate, formatCurrency } from '../lib/utils';
 import { Trash2, MapPin, FileUp, Info } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
-import { useRef, useState } from 'react';
 
 interface EntryListProps {
   entries: FuelEntry[];
@@ -33,12 +33,13 @@ export default function EntryList({ entries, onDelete, onImport }: EntryListProp
         const importedEntries: Omit<FuelEntry, 'id'>[] = data.map((row: any) => {
           const dateVal = row['วันที่ (date)'] || row.date || row['วันที่'] || row['Date'];
           const amountVal = row['จำนวนเงิน (amount)'] || row.amount || row['จำนวนเงิน'] || row['ราคา'] || row['Amount'];
-          const typeVal = String(row['ประเภท (tripType)'] || row.tripType || row['ประเภท'] || row['Type'] || '').trim();
+          const typeVal = String(row['ประเภท (trip_type)'] || row.trip_type || row['ประเภท'] || row['Type'] || '').trim();
+          const tripsVal = row['จำนวนเที่ยว'] || row['trips'] || row['Trips'];
           const noteVal = row.note || row['หมายเหตุ'] || row['Note'] || '';
 
-          let tripType: 'daily' | 'round-trip' = 'daily';
+          let trip_type: 'daily' | 'round-trip' = 'daily';
           if (typeVal.includes('ไป-กลับ') || typeVal.includes('ไปกลับ') || typeVal.toLowerCase().includes('round')) {
-            tripType = 'round-trip';
+            trip_type = 'round-trip';
           }
 
           let finalDate: string;
@@ -52,7 +53,8 @@ export default function EntryList({ entries, onDelete, onImport }: EntryListProp
           return {
             date: finalDate,
             amount: Number(String(amountVal).replace(/[^0-9.-]+/g, "")) || 0,
-            tripType,
+            trip_type,
+            trips: tripsVal ? Number(tripsVal) : undefined,
             note: String(noteVal || '')
           };
         });
@@ -92,12 +94,14 @@ export default function EntryList({ entries, onDelete, onImport }: EntryListProp
       {
         'วันที่ (date)': '2024-05-19',
         'จำนวนเงิน (amount)': 500,
-        'ประเภท (tripType)': 'ไป-กลับ'
+        'ประเภท (trip_type)': 'ไป-กลับ',
+        'จำนวนเที่ยว': 2
       },
       {
         'วันที่ (date)': '2024-05-20',
         'จำนวนเงิน (amount)': 1000,
-        'ประเภท (tripType)': 'รายวัน'
+        'ประเภท (trip_type)': 'รายวัน',
+        'จำนวนเที่ยว': ''
       }
     ];
 
@@ -217,13 +221,18 @@ export default function EntryList({ entries, onDelete, onImport }: EntryListProp
             >
             <div className="flex items-center gap-3">
               <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                entry.tripType === 'round-trip' ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'
+                entry.trip_type === 'round-trip' ? 'bg-orange-100 text-orange-600' : 'bg-blue-100 text-blue-600'
               }`}>
                 <MapPin className="w-5 h-5" strokeWidth={2.5} />
               </div>
               <div>
                 <p className="text-sm font-bold text-brand-calm">
-                  {entry.tripType === 'round-trip' ? 'ไป-กลับ' : 'รายวัน'}
+                  {entry.trip_type === 'round-trip' ? 'ไป-กลับ' : 'รายวัน'}
+                  {entry.trips && entry.trips > 0 && (
+                    <span className="ml-2 text-[10px] bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full">
+                      {entry.trips} เที่ยว
+                    </span>
+                  )}
                 </p>
                 <p className="text-[10px] text-gray-400">{formatDate(entry.date)}</p>
               </div>
@@ -231,7 +240,7 @@ export default function EntryList({ entries, onDelete, onImport }: EntryListProp
             
             <div className="flex items-center gap-3">
               <p className={`font-black ${
-                entry.tripType === 'round-trip' ? 'text-orange-600' : 'text-blue-600'
+                entry.trip_type === 'round-trip' ? 'text-orange-600' : 'text-blue-600'
               }`}>{formatCurrency(entry.amount)}</p>
               
               <button
