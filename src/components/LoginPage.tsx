@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Lock, User, LogIn, Droplet } from 'lucide-react';
-
+import { Lock, User, LogIn, Droplet, RefreshCcw } from 'lucide-react';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { UserRole } from '../types';
 
 interface LoginPageProps {
@@ -12,15 +12,42 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if ((username === 'com' && password === 'com') || (username === 'admin' && password === 'admin')) {
-      onLogin('admin');
-    } else if (username === 'user' && password === 'user') {
-      onLogin('user');
-    } else {
-      setError('ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
+    
+    if (!isSupabaseConfigured) {
+      if (username === 'admin' && password === 'admin') {
+        onLogin('admin');
+      } else {
+        setError('กรุณาตั้งค่า Supabase URL และ Key ในเมนู Settings (หรือใช้ admin/admin)');
+      }
+      return;
+    }
+
+    setIsLoading(true);
+    setError('');
+
+    try {
+      const { data, error: dbError } = await supabase
+        .from('users')
+        .select('role, password')
+        .eq('username', username)
+        .single();
+
+      if (dbError || !data) {
+        setError('ไม่พบชื่อผู้ใช้นี้ในระบบ');
+      } else if (data.password !== password) {
+        setError('รหัสผ่านไม่ถูกต้อง');
+      } else {
+        onLogin(data.role as UserRole);
+      }
+    } catch (err) {
+      console.error('Login error:', err);
+      setError('เกิดข้อผิดพลาดในการเชื่อมต่อฐานข้อมูล');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -94,14 +121,19 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
           <motion.button
             whileTap={{ scale: 0.98 }}
             type="submit"
-            className="w-full py-4 header-gradient text-white rounded-2xl font-black flex items-center justify-center gap-2 shadow-xl shadow-red-100 hover:opacity-90 transition-all uppercase tracking-widest text-sm"
+            disabled={isLoading}
+            className="w-full py-4 header-gradient text-white rounded-2xl font-black flex items-center justify-center gap-2 shadow-xl shadow-red-100 hover:opacity-90 transition-all uppercase tracking-widest text-sm disabled:opacity-50"
           >
-            <LogIn size={18} className="mr-1" />
-            เข้าสู่ระบบ
+            {isLoading ? (
+              <RefreshCcw size={18} className="animate-spin" />
+            ) : (
+              <LogIn size={18} className="mr-1" />
+            )}
+            {isLoading ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ'}
           </motion.button>
 
           <p className="text-[10px] text-center text-gray-400 uppercase tracking-widest pt-2">
-            Admin: admin/admin | User: user/user
+            ระบบเชื่อมต่อฐานข้อมูล Supabase เพื่อใช้งานจริง
           </p>
         </form>
       </motion.div>

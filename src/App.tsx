@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { FuelEntry, Stats, UserRole } from './types';
 import FuelForm from './components/FuelForm';
 import StatsBoard from './components/StatsBoard';
@@ -11,48 +11,62 @@ import FuelChart from './components/FuelChart';
 import EntryList from './components/EntryList';
 import LoginPage from './components/LoginPage';
 import UserManagement from './components/UserManagement';
+import SupabaseSettings from './components/SupabaseSettings';
 import { formatCurrency } from './lib/utils';
-import { startOfWeek, startOfMonth, isWithinInterval, endOfWeek, endOfMonth, isSameMonth, isSameYear } from 'date-fns';
+import { startOfWeek, startOfMonth, endOfWeek, endOfMonth, isSameMonth, isSameYear } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
-import { Droplet, LogOut, User, LayoutDashboard, Users } from 'lucide-react';
+import { Droplet, LogOut, LayoutDashboard, Users, RefreshCcw } from 'lucide-react';
+import { supabase, isSupabaseConfigured } from './lib/supabase';
 
-const STORAGE_KEY = 'fuel_tracker_data';
 const AUTH_KEY = 'fuel_tracker_auth';
 const ROLE_KEY = 'fuel_tracker_role';
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [userRole, setUserRole] = useState<UserRole>('user');
-  const [adminView, setAdminView] = useState<'dashboard' | 'users'>('dashboard');
+  const [adminView, setAdminView] = useState<'dashboard' | 'users' | 'settings'>('dashboard');
   const [entries, setEntries] = useState<FuelEntry[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [stats, setStats] = useState<Stats>({
     weeklyAverage: 0,
     monthlyAverage: 0,
     totalThisMonth: 0,
   });
 
-  // Load auth state and data from localStorage
+  const fetchEntries = useCallback(async () => {
+    if (!isSupabaseConfigured) {
+      setIsLoading(false);
+      return;
+    }
+    setIsLoading(true);
+    const { data, error } = await supabase
+      .from('fuel_entries')
+      .select('*')
+      .order('date', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching entries:', error);
+    } else {
+      setEntries(data || []);
+    }
+    setIsLoading(false);
+  }, []);
+
+  // Load auth state and data
   useEffect(() => {
     const auth = localStorage.getItem(AUTH_KEY);
     const role = localStorage.getItem(ROLE_KEY) as UserRole;
     if (auth === 'true' && role) {
       setIsAuthenticated(true);
       setUserRole(role);
+      fetchEntries();
+    } else {
+      setIsLoading(false);
     }
+  }, [fetchEntries]);
 
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        setEntries(JSON.parse(saved));
-      } catch (e) {
-        console.error('Failed to parse saved data', e);
-      }
-    }
-  }, []);
-
-  // Save data and calculate stats
+  // Calculate stats when entries change
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
     calculateStats();
   }, [entries]);
 
@@ -109,33 +123,86 @@ export default function App() {
     setUserRole(role);
     localStorage.setItem(AUTH_KEY, 'true');
     localStorage.setItem(ROLE_KEY, role);
+    fetchEntries();
   };
 
   const handleLogout = () => {
     setIsAuthenticated(false);
     localStorage.removeItem(AUTH_KEY);
     localStorage.removeItem(ROLE_KEY);
+    setEntries([]);
   };
 
-  const handleAddEntry = (newEntry: Omit<FuelEntry, 'id'>) => {
-    const entry: FuelEntry = {
+  const handleAddEntry = async (newEntry: Omit<FuelEntry, 'id'>) => {
+    if (!isSupabaseConfigured) {
+      alert('กรุณาตั้งค่า Supabase URL และ Key ในเมนู Settings ก่อนใช้งาน');
+      return;
+    }
+    const entry = {
       ...newEntry,
       id: crypto.randomUUID(),
     };
-    setEntries(prev => [...prev, entry]);
+    
+    setEntries(prev => [entry, ...prev]);
+
+    const { error } = await supabase
+      .from('fuel_entries')
+      .insert([entry]);
+
+    if (error) {
+      console.error('Error adding entry:', error);
+      alert('ไม่สามารถบันทึกข้อมูลได้ กรุณาลองใหม่อีกครั้ง');
+      fetchEntries(); // Revert local state
+    }
   };
 
-  const handleImportEntries = (newEntries: Omit<FuelEntry, 'id'>[]) => {
+  const handleImportEntries = async (newEntries: Omit<FuelEntry, 'id'>[]) => {
     const entriesWithId: FuelEntry[] = newEntries.map(e => ({
       ...e,
       id: crypto.randomUUID()
     }));
-    setEntries(prev => [...prev, ...entriesWithId]);
+    
+    setEntries(prev => [...entriesWithId, ...prev]);
+
+    const { error } = await supabase
+      .from('fuel_entries')
+      .insert(entriesWithId);
+
+    if (error) {
+      console.error('Error importing entries:', error);
+      alert('ไม่สามารถนำเข้าข้อมูลบางส่วนได้ กรุณาตรวจสอบรูปแบบไฟล์');
+      fetchEntries(); // Revert local state
+    }
   };
 
-  const handleDeleteEntry = (id: string) => {
+  const handleDeleteEntry = async (id: string) => {
+    const originalEntries = [...entries];
     setEntries(prev => prev.filter(e => e.id !== id));
+
+    const { error } = await supabase
+      .from('fuel_entries')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error('Error deleting entry:', error);
+      alert('ไม่สามารถลบข้อมูลได้');
+      setEntries(originalEntries); // Revert
+    }
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-brand-bg flex items-center justify-center">
+        <motion.div 
+          animate={{ rotate: 360 }}
+          transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+        >
+          <RefreshCcw className="text-brand-primary w-8 h-8" />
+        </motion.div>
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return <LoginPage onLogin={handleLogin} />;
@@ -162,6 +229,13 @@ export default function App() {
             <h1 className="text-2xl font-black lg:text-3xl">Fuel Tracker</h1>
           </div>
           <div className="flex items-center gap-3">
+            <button 
+              onClick={fetchEntries}
+              className="p-3 bg-white/10 rounded-2xl border border-white/20 flex items-center justify-center backdrop-blur-sm shadow-xl hover:bg-white/20 transition-all text-white"
+              title="Refresh Data"
+            >
+              <RefreshCcw className="w-5 h-5" />
+            </button>
             <button 
               onClick={handleLogout}
               className="p-3 bg-white/10 rounded-2xl border border-white/20 flex items-center justify-center backdrop-blur-sm shadow-xl hover:bg-white/20 transition-all text-white"
@@ -230,6 +304,19 @@ export default function App() {
                     <span className="text-xs font-black uppercase tracking-wider">การจัดการผู้ใช้งาน</span>
                   </motion.button>
 
+                  <motion.button
+                    whileHover={{ x: 4 }}
+                    onClick={() => setAdminView('settings')}
+                    className={`p-5 rounded-[24px] flex items-center gap-4 transition-all ${
+                      adminView === 'settings' 
+                      ? 'bg-brand-primary text-white shadow-xl shadow-red-100' 
+                      : 'bg-white text-gray-400 hover:text-brand-calm border border-gray-50 hover:border-brand-primary/20'
+                    }`}
+                  >
+                    <RefreshCcw className="w-5 h-5 flex-shrink-0" />
+                    <span className="text-xs font-black uppercase tracking-wider">ตั้งค่า API</span>
+                  </motion.button>
+
                   <div className="p-6 bg-brand-bg rounded-[32px] border border-gray-100 mt-6 hidden lg:block">
                     <div className="flex items-center gap-3 mb-4">
                        <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center">
@@ -250,39 +337,48 @@ export default function App() {
           <div className={isAdmin ? 'lg:col-span-9 space-y-8' : 'lg:col-span-12 space-y-8'}>
             {isAdmin ? (
               <AnimatePresence mode="wait">
-                {adminView === 'dashboard' ? (
-                  <motion.div
-                    key="admin-dashboard"
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -20 }}
-                    className="grid grid-cols-1 lg:grid-cols-12 gap-8"
-                  >
-                    <div className="lg:col-span-8 space-y-8">
-                      <StatsBoard stats={stats} />
-                      <FuelChart entries={entries} />
-                      <EntryList entries={entries} onDelete={handleDeleteEntry} onImport={handleImportEntries} />
-                    </div>
-                    <div className="lg:col-span-4 space-y-8">
-                       <FuelForm onAddEntry={handleAddEntry} />
-                       <div className="p-6 bg-brand-bg rounded-3xl border border-gray-100">
-                          <h4 className="font-bold text-brand-calm mb-2 text-sm">เคล็ดลับแอดมิน</h4>
-                          <p className="text-xs text-gray-500 leading-relaxed italic">
-                            ระบบรวบรวมค่าน้ำมันทั้งหมดเพื่อคำนวณงบประมาณรายเดือนโดยอัตโนมัติ
-                          </p>
-                       </div>
-                    </div>
-                  </motion.div>
-                ) : (
-                  <motion.div
-                    key="admin-users"
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -20 }}
-                  >
-                    <UserManagement />
-                  </motion.div>
-                )}
+                  {adminView === 'dashboard' ? (
+                    <motion.div
+                      key="admin-dashboard"
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -20 }}
+                      className="grid grid-cols-1 lg:grid-cols-12 gap-8"
+                    >
+                      <div className="lg:col-span-8 space-y-8">
+                        <StatsBoard stats={stats} />
+                        <FuelChart entries={entries} />
+                        <EntryList entries={entries} onDelete={handleDeleteEntry} onImport={handleImportEntries} />
+                      </div>
+                      <div className="lg:col-span-4 space-y-8">
+                         <FuelForm onAddEntry={handleAddEntry} />
+                         <div className="p-6 bg-brand-bg rounded-3xl border border-gray-100">
+                            <h4 className="font-bold text-brand-calm mb-2 text-sm">เคล็ดลับแอดมิน</h4>
+                            <p className="text-xs text-gray-500 leading-relaxed italic">
+                              ระบบรวบรวมค่าน้ำมันทั้งหมดเพื่อคำนวณงบประมาณรายเดือนโดยอัตโนมัติ
+                            </p>
+                         </div>
+                      </div>
+                    </motion.div>
+                  ) : adminView === 'users' ? (
+                    <motion.div
+                      key="admin-users"
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -20 }}
+                    >
+                      <UserManagement />
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="admin-settings"
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -20 }}
+                    >
+                      <SupabaseSettings />
+                    </motion.div>
+                  )}
               </AnimatePresence>
             ) : (
               <motion.div
@@ -306,7 +402,7 @@ export default function App() {
         </div>
 
         <footer className="pt-12 text-center text-gray-400 text-[10px] uppercase tracking-widest pb-8">
-          <p>© 2024 Fuel Tracker App. ปลอดภัยด้วยการจัดเก็บข้อมูลในบราวเซอร์ของคุณ</p>
+          <p>© 2024 Fuel Tracker App. ระบบเชื่อมต่อฐานข้อมูลSupabase เพื่อการใช้งานจริง</p>
         </footer>
       </main>
     </div>

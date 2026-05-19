@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { UserPlus, Shield, User, Trash2, Mail, BadgeCheck } from 'lucide-react';
+import { UserPlus, Shield, User, Trash2, Mail, BadgeCheck, RefreshCcw } from 'lucide-react';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 interface AppUser {
   id: string;
@@ -11,21 +12,44 @@ interface AppUser {
   email: string;
 }
 
-const INITIAL_USERS: AppUser[] = [
-  { id: '1', name: 'Administrator', username: 'admin', password: 'admin', role: 'admin', email: 'admin@tracker.com' },
-  { id: '2', name: 'Standard User', username: 'user', password: 'user', role: 'user', email: 'user@tracker.com' },
-];
-
 export default function UserManagement() {
-  const [users, setUsers] = useState<AppUser[]>(INITIAL_USERS);
+  const [users, setUsers] = useState<AppUser[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
   const [newName, setNewName] = useState('');
   const [newUsername, setNewUsername] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [newRole, setNewRole] = useState<'admin' | 'user'>('user');
 
-  const handleAddUser = (e: React.FormEvent) => {
+  const fetchUsers = useCallback(async () => {
+    if (!isSupabaseConfigured) {
+      setIsLoading(false);
+      return;
+    }
+    setIsLoading(true);
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .order('name', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching users:', error);
+    } else {
+      setUsers(data || []);
+    }
+    setIsLoading(false);
+  }, []);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
+
+  const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isSupabaseConfigured) {
+      alert('กรุณาตั้งค่า Supabase URL และ Key ในเมนู Settings');
+      return;
+    }
     const newUser: AppUser = {
       id: crypto.randomUUID(),
       name: newName,
@@ -34,18 +58,59 @@ export default function UserManagement() {
       role: newRole,
       email: `${newUsername}@tracker.com`
     };
-    setUsers([...users, newUser]);
-    setNewName('');
-    setNewUsername('');
-    setNewPassword('');
-    setIsAdding(false);
-  };
 
-  const deleteUser = (id: string) => {
-    if (confirm('คุณต้องการลบผู้ใช้นี้ใช่หรือไม่?')) {
-      setUsers(users.filter(u => u.id !== id));
+    const originalUsers = [...users];
+    setUsers([...users, newUser]);
+    
+    const { error } = await supabase
+      .from('users')
+      .insert([newUser]);
+
+    if (error) {
+      console.error('Error adding user:', error);
+      alert('ไม่สามารถเพิ่มผู้ใช้งานได้');
+      setUsers(originalUsers);
+    } else {
+      setNewName('');
+      setNewUsername('');
+      setNewPassword('');
+      setIsAdding(false);
     }
   };
+
+  const deleteUser = async (id: string) => {
+    const userToDelete = users.find(u => u.id === id);
+    if (!userToDelete) return;
+
+    if (userToDelete.username === 'admin') {
+      alert('ไม่สามารถลบผู้ดูแลระบบหลักได้');
+      return;
+    }
+
+    if (confirm('คุณต้องการลบผู้ใช้นี้ใช่หรือไม่?')) {
+      const originalUsers = [...users];
+      setUsers(users.filter(u => u.id !== id));
+
+      const { error } = await supabase
+        .from('users')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('Error deleting user:', error);
+        alert('ไม่สามารถลบผู้ใช้งานได้');
+        setUsers(originalUsers);
+      }
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-20">
+        <RefreshCcw className="animate-spin text-brand-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 max-w-4xl mx-auto">
