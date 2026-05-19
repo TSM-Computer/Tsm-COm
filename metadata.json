@@ -1,0 +1,6 @@
+{
+  "name": "Fuel Tracker - บันทึกค่าน้ำมัน",
+  "description": "แอปพลิเคชันสำหรับบันทึกค่าน้ำมันไปกลับ คำนวณค่าเฉลี่ยรายสัปดาห์และรายเดือน พร้อมแสดงผลด้วยกราฟที่สวยงาม",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

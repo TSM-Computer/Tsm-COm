@@ -1,0 +1,36 @@
+@import url('https://fonts.googleapis.com/css2?family=Kanit:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Kanit", ui-sans-serif, system-ui, sans-serif;
+  --font-heading: "Kanit", sans-serif;
+  
+  --color-brand-primary: #FF6B6B;
+  --color-brand-primary-light: #FF8E53;
+  --color-brand-secondary: #4D96FF;
+  --color-brand-success: #6BCB77;
+  --color-brand-calm: #2D3436;
+  --color-brand-bg: #FAFAFA;
+}
+
+:root {
+  --background: #FAFAFA;
+  --foreground: #2D3436;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--background);
+  color: var(--foreground);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.header-gradient {
+  background: linear-gradient(135deg, #FF6B6B, #FF8E53);
+}
+
+.glass-morphism {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
