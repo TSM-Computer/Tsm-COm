@@ -68,7 +68,7 @@ export default function UserManagement() {
 
     if (error) {
       console.error('Error adding user:', error);
-      alert('ไม่สามารถเพิ่มผู้ใช้งานได้');
+      alert(`ไม่สามารถเพิ่มผู้ใช้งานได้: ${error.message}`);
       setUsers(originalUsers);
     } else {
       setNewName('');
@@ -98,7 +98,7 @@ export default function UserManagement() {
 
       if (error) {
         console.error('Error deleting user:', error);
-        alert('ไม่สามารถลบผู้ใช้งานได้');
+        alert(`ไม่สามารถลบผู้ใช้งานได้: ${error.message}`);
         setUsers(originalUsers);
       }
     }

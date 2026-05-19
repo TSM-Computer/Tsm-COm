@@ -151,7 +151,7 @@ export default function App() {
 
     if (error) {
       console.error('Error adding entry:', error);
-      alert('ไม่สามารถบันทึกข้อมูลได้ กรุณาลองใหม่อีกครั้ง');
+      alert(`ไม่สามารถบันทึกข้อมูลได้: ${error.message}`);
       fetchEntries(); // Revert local state
     }
   };
@@ -170,7 +170,7 @@ export default function App() {
 
     if (error) {
       console.error('Error importing entries:', error);
-      alert('ไม่สามารถนำเข้าข้อมูลบางส่วนได้ กรุณาตรวจสอบรูปแบบไฟล์');
+      alert(`ไม่สามารถนำเข้าข้อมูลได้: ${error.message}`);
       fetchEntries(); // Revert local state
     }
   };
@@ -186,7 +186,7 @@ export default function App() {
 
     if (error) {
       console.error('Error deleting entry:', error);
-      alert('ไม่สามารถลบข้อมูลได้');
+      alert(`ไม่สามารถลบข้อมูลได้: ${error.message}`);
       setEntries(originalEntries); // Revert
     }
   };
